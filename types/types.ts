@@ -14,6 +14,8 @@ export const MAPS = [
   "Summit",
 ] as const
 
+export const TAGS = ["Post-plant", "Retake", "Attack", "Defense"] as const
+
 export type MapName = (typeof MAPS)[number]
 export type SiteFilter = "A" | "B" | "C" | "all"
 
@@ -22,7 +24,6 @@ export interface Lineup {
   title: string
   map: MapName
   site: "A" | "B" | "C"
-  type: "Attaque" | "Défense"
   difficulty: "Facile" | "Moyenne" | "Difficile"
   tags: string[]
   from: string

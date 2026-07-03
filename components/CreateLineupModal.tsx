@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { createLineup } from "@/app/actions/lineup"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -21,16 +22,19 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Check } from "lucide-react"
-
-// Liste des tags Valorant prédéfinis
-const PREDEFINED_TAGS = ["Post-plant", "Retake"]
+import { Plus, Check, Loader2 } from "lucide-react"
+import { MAPS, TAGS } from "@/types/types"
 
 export default function CreateLineupModal() {
-  // État local pour suivre les tags sélectionnés dans la modal
+  const [open, setOpen] = useState(false)
+  const [loading, setLoading] = useState(false)
   const [selectedTags, setSelectedTags] = useState<string[]>([])
 
-  // Fonction pour ajouter/retirer un tag au clic
+  // États pour les composants Select contrôlés de shadcn
+  const [mapName, setMapName] = useState<string>("")
+  const [difficulty, setDifficulty] = useState<string>("")
+  const [site, setSite] = useState<string>("")
+
   const toggleTag = (tag: string) => {
     if (selectedTags.includes(tag)) {
       setSelectedTags(selectedTags.filter((t) => t !== tag))
@@ -39,8 +43,33 @@ export default function CreateLineupModal() {
     }
   }
 
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    setLoading(true)
+
+    const formData = new FormData(e.currentTarget)
+    // Injection manuelle des valeurs des listes déroulantes
+    formData.append("map", mapName)
+    formData.append("difficulty", difficulty)
+    formData.append("site", site)
+
+    const result = await createLineup(formData, selectedTags)
+
+    setLoading(false)
+    if (result.success) {
+      setOpen(false)
+      // Réinitialisation complète du formulaire
+      setSelectedTags([])
+      setMapName("")
+      setDifficulty("")
+      setSite("")
+    } else {
+      alert(result.error)
+    }
+  }
+
   return (
-    <Dialog>
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button className="h-10 gap-2 rounded-lg bg-[#ff4655] px-4 text-xs font-semibold tracking-wider text-white uppercase transition-all hover:bg-[#e03e4b]">
           <Plus className="h-4 w-4 stroke-3" />
@@ -48,10 +77,7 @@ export default function CreateLineupModal() {
         </Button>
       </DialogTrigger>
 
-      <DialogContent
-        className="max-h-[95vh] overflow-y-auto border-gray-800 bg-[#14171c] text-gray-200 sm:max-w-[450px]"
-        onPointerDownOutside={(e) => e.preventDefault()}
-      >
+      <DialogContent className="max-h-[95vh] overflow-y-auto border-gray-800 bg-[#14171c] text-gray-200 sm:max-w-[450px]">
         <DialogHeader>
           <DialogTitle className="text-xl font-bold text-white">
             Nouvelle Lineup
@@ -62,7 +88,7 @@ export default function CreateLineupModal() {
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-5 py-4">
+        <form onSubmit={handleSubmit} className="grid gap-5 py-4">
           {/* Titre */}
           <div className="flex flex-col gap-2">
             <Label
@@ -73,9 +99,34 @@ export default function CreateLineupModal() {
             </Label>
             <Input
               id="title"
+              name="title"
+              required
               placeholder="Ex: Mid to A safe"
               className="border-gray-800 bg-[#0f1115] text-white focus-visible:ring-[#ff4655]"
             />
+          </div>
+
+          {/* AJOUT : Dropdown pour la Map */}
+          <div className="flex flex-col gap-2">
+            <Label className="text-xs font-semibold text-gray-400 uppercase">
+              Map
+            </Label>
+            <Select value={mapName} onValueChange={setMapName} required>
+              <SelectTrigger className="w-full border-gray-800 bg-[#0f1115] text-white focus:ring-[#ff4655]">
+                <SelectValue placeholder="Sélectionner une map" />
+              </SelectTrigger>
+              <SelectContent className="border-gray-800 bg-[#0f1115] text-gray-200">
+                {MAPS.map((map) => (
+                  <SelectItem
+                    key={map}
+                    value={map}
+                    className="focus:bg-[#3a1c20] focus:text-[#ff4655]"
+                  >
+                    {map}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Temps de trajet (Molly) */}
@@ -88,22 +139,23 @@ export default function CreateLineupModal() {
             </Label>
             <Input
               id="travelTime"
+              name="travelTime"
               type="number"
               step="0.1"
               min="0"
+              required
               placeholder="Ex: 4.5"
               className="border-gray-800 bg-[#0f1115] text-white focus-visible:ring-[#ff4655]"
             />
           </div>
 
-          {/* SECTION CÔTE À CÔTE : Difficulté & Site */}
-          <div className="flex w-full flex-col gap-4 sm:flex-row">
-            {/* Dropdown pour la Difficulté */}
-            <div className="flex flex-1 flex-col gap-2">
+          {/* Côte à côte : Difficulté & Site */}
+          <div className="grid w-full grid-cols-2 gap-4">
+            <div className="flex flex-col gap-2">
               <Label className="text-xs font-semibold text-gray-400 uppercase">
                 Difficulté
               </Label>
-              <Select>
+              <Select value={difficulty} onValueChange={setDifficulty} required>
                 <SelectTrigger className="w-full border-gray-800 bg-[#0f1115] text-white focus:ring-[#ff4655]">
                   <SelectValue placeholder="Difficulté" />
                 </SelectTrigger>
@@ -130,12 +182,11 @@ export default function CreateLineupModal() {
               </Select>
             </div>
 
-            {/* Dropdown pour le Site */}
-            <div className="flex flex-1 flex-col gap-2">
+            <div className="flex flex-col gap-2">
               <Label className="text-xs font-semibold text-gray-400 uppercase">
                 Site
               </Label>
-              <Select>
+              <Select value={site} onValueChange={setSite} required>
                 <SelectTrigger className="w-full border-gray-800 bg-[#0f1115] text-white focus:ring-[#ff4655]">
                   <SelectValue placeholder="Site" />
                 </SelectTrigger>
@@ -169,7 +220,7 @@ export default function CreateLineupModal() {
               Tags
             </Label>
             <div className="flex flex-wrap gap-1.5 rounded-lg border border-gray-800 bg-[#0f1115] p-3">
-              {PREDEFINED_TAGS.map((tag) => {
+              {TAGS.map((tag) => {
                 const isSelected = selectedTags.includes(tag)
                 return (
                   <Badge
@@ -179,7 +230,7 @@ export default function CreateLineupModal() {
                     className={`flex cursor-pointer items-center gap-1 border-none px-2.5 py-1 text-xs font-medium transition-all select-none ${
                       isSelected
                         ? "bg-[#ff4655] text-white hover:bg-[#ff4655]/90"
-                        : "bg-[#1c2026] text-gray-400 hover:bg-[#22272e] hover:text-white"
+                        : "bg-[#1c2026] text-gray-400"
                     }`}
                   >
                     {isSelected && <Check className="h-3 w-3 stroke-3" />}
@@ -200,9 +251,11 @@ export default function CreateLineupModal() {
             </Label>
             <Input
               id="img-from"
+              name="img-from"
               type="file"
               accept="image/*"
-              className="cursor-pointer border-gray-800 bg-[#0f1115] text-gray-400 file:mr-2 file:rounded file:border-none file:bg-[#1c2026] file:px-2 file:py-1 file:text-xs file:font-semibold file:text-white hover:file:bg-gray-700"
+              required
+              className="cursor-pointer border-gray-800 bg-[#0f1115] text-gray-400 file:mr-2 file:bg-[#1c2026] file:text-white"
             />
           </div>
 
@@ -216,21 +269,31 @@ export default function CreateLineupModal() {
             </Label>
             <Input
               id="img-to"
+              name="img-to"
               type="file"
               accept="image/*"
-              className="cursor-pointer border-gray-800 bg-[#0f1115] text-gray-400 file:mr-2 file:rounded file:border-none file:bg-[#1c2026] file:px-2 file:py-1 file:text-xs file:font-semibold file:text-white hover:file:bg-gray-700"
+              required
+              className="cursor-pointer border-gray-800 bg-[#0f1115] text-gray-400 file:mr-2 file:bg-[#1c2026] file:text-white"
             />
           </div>
-        </div>
 
-        <DialogFooter className="mt-2">
-          <Button
-            type="button"
-            className="h-10 w-full bg-[#ff4655] text-xs font-semibold tracking-wider text-white uppercase hover:bg-[#e03e4b]"
-          >
-            Enregistrer la lineup
-          </Button>
-        </DialogFooter>
+          <DialogFooter className="mt-2">
+            <Button
+              type="submit"
+              disabled={loading}
+              className="h-10 w-full bg-[#ff4655] text-xs font-semibold tracking-wider text-white uppercase hover:bg-[#e03e4b]"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Enregistrement...
+                </>
+              ) : (
+                "Enregistrer la lineup"
+              )}
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   )
