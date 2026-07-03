@@ -28,5 +28,7 @@ export interface Lineup {
   tags: string[]
   from: string
   to: string
+  markerX: number
+  markerY: number
   travelTime: number
 }

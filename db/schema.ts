@@ -20,5 +20,7 @@ export const lineups = pgTable("lineups", {
   from: text("from").notNull(),
   to: text("to").notNull(),
   travelTime: real("travel_time").notNull(),
+  markerX: real("marker_x"),
+  markerY: real("marker_y"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 })

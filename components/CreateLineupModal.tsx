@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { createLineup } from "@/app/actions/lineup"
 import { Button } from "@/components/ui/button"
+import Image from "next/image"
 import {
   Dialog,
   DialogContent,
@@ -29,6 +30,9 @@ export default function CreateLineupModal() {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [selectedTags, setSelectedTags] = useState<string[]>([])
+  const [marker, setMarker] = useState<{ x: number; y: number } | null>(null)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [previewToUrl, setPreviewToUrl] = useState<string | null>(null) // AJOUT : Aperçu de l'image d'arrivée
 
   // États pour les composants Select contrôlés de shadcn
   const [mapName, setMapName] = useState<string>("")
@@ -43,26 +47,36 @@ export default function CreateLineupModal() {
     }
   }
 
+  const handleImageClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect()
+    const x = ((e.clientX - rect.left) / rect.width) * 100
+    const y = ((e.clientY - rect.top) / rect.height) * 100
+    setMarker({ x, y })
+  }
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setLoading(true)
 
     const formData = new FormData(e.currentTarget)
-    // Injection manuelle des valeurs des listes déroulantes
     formData.append("map", mapName)
     formData.append("difficulty", difficulty)
     formData.append("site", site)
+    formData.append("markerX", marker?.x.toString() || "")
+    formData.append("markerY", marker?.y.toString() || "")
 
     const result = await createLineup(formData, selectedTags)
 
     setLoading(false)
     if (result.success) {
       setOpen(false)
-      // Réinitialisation complète du formulaire
       setSelectedTags([])
       setMapName("")
       setDifficulty("")
       setSite("")
+      setMarker(null)
+      setPreviewUrl(null)
+      setPreviewToUrl(null) // Reset de l'aperçu d'arrivée
     } else {
       alert(result.error)
     }
@@ -106,7 +120,7 @@ export default function CreateLineupModal() {
             />
           </div>
 
-          {/* AJOUT : Dropdown pour la Map */}
+          {/* Map */}
           <div className="flex flex-col gap-2">
             <Label className="text-xs font-semibold text-gray-400 uppercase">
               Map
@@ -129,7 +143,7 @@ export default function CreateLineupModal() {
             </Select>
           </div>
 
-          {/* Temps de trajet (Molly) */}
+          {/* Temps de trajet */}
           <div className="flex flex-col gap-2">
             <Label
               htmlFor="travelTime"
@@ -149,7 +163,7 @@ export default function CreateLineupModal() {
             />
           </div>
 
-          {/* Côte à côte : Difficulté & Site */}
+          {/* Difficulté & Site */}
           <div className="grid w-full grid-cols-2 gap-4">
             <div className="flex flex-col gap-2">
               <Label className="text-xs font-semibold text-gray-400 uppercase">
@@ -214,7 +228,7 @@ export default function CreateLineupModal() {
             </div>
           </div>
 
-          {/* Tags Prédéfinis */}
+          {/* Tags */}
           <div className="flex flex-col gap-2">
             <Label className="text-xs font-semibold text-gray-400 uppercase">
               Tags
@@ -243,20 +257,42 @@ export default function CreateLineupModal() {
 
           {/* Upload Image 1 (From) */}
           <div className="flex flex-col gap-2">
-            <Label
-              htmlFor="img-from"
-              className="text-xs font-semibold text-gray-400 uppercase"
-            >
-              Image : Point de départ
+            <Label className="text-xs font-semibold text-gray-400 uppercase">
+              Image : Point de départ (cliquez pour placer le point)
             </Label>
             <Input
-              id="img-from"
-              name="img-from"
               type="file"
               accept="image/*"
+              name="img-from"
               required
-              className="cursor-pointer border-gray-800 bg-[#0f1115] text-gray-400 file:mr-2 file:bg-[#1c2026] file:text-white"
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                if (file) setPreviewUrl(URL.createObjectURL(file))
+              }}
             />
+            {previewUrl && (
+              <div
+                className="relative mt-2 aspect-video w-full cursor-crosshair overflow-hidden rounded-lg border border-gray-700"
+                onClick={handleImageClick}
+              >
+                <Image
+                  src={previewUrl}
+                  alt="Preview Départ"
+                  fill
+                  className="pointer-events-none object-cover"
+                />
+                {marker && (
+                  <div
+                    className="absolute h-6 w-6 animate-in rounded-full border-2 border-[#ff4655] bg-transparent shadow-[0_0_4px_rgba(255,70,85,0.6)] zoom-in"
+                    style={{
+                      left: `${marker.x}%`,
+                      top: `${marker.y}%`,
+                      transform: "translate(-50%, -50%)",
+                    }}
+                  />
+                )}
+              </div>
+            )}
           </div>
 
           {/* Upload Image 2 (To) */}
@@ -274,7 +310,22 @@ export default function CreateLineupModal() {
               accept="image/*"
               required
               className="cursor-pointer border-gray-800 bg-[#0f1115] text-gray-400 file:mr-2 file:bg-[#1c2026] file:text-white"
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                if (file) setPreviewToUrl(URL.createObjectURL(file)) // AJOUT : Génère l'URL d'aperçu pour l'arrivée
+              }}
             />
+            {/* AJOUT : Rendu visuel de la preview de l'image d'arrivée (statique) */}
+            {previewToUrl && (
+              <div className="relative mt-2 aspect-video w-full overflow-hidden rounded-lg border border-gray-700">
+                <Image
+                  src={previewToUrl}
+                  alt="Preview Arrivée"
+                  fill
+                  className="object-cover"
+                />
+              </div>
+            )}
           </div>
 
           <DialogFooter className="mt-2">

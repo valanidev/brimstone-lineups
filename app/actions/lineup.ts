@@ -20,7 +20,21 @@ export async function createLineup(formData: FormData, selectedTags: string[]) {
     const imgFrom = formData.get("img-from") as File
     const imgTo = formData.get("img-to") as File
 
-    if (!title || !site || !difficulty || !imgFrom || !imgTo) {
+    const markerXRaw = formData.get("markerX")
+    const markerYRaw = formData.get("markerY")
+    const markerX = markerXRaw ? parseFloat(markerXRaw as string) : null
+    const markerY = markerYRaw ? parseFloat(markerYRaw as string) : null
+
+    if (
+      !title ||
+      !map ||
+      !site ||
+      !difficulty ||
+      !imgFrom ||
+      !imgTo ||
+      !markerX ||
+      !markerY
+    ) {
       throw new Error("Champs obligatoires manquants.")
     }
 
@@ -40,6 +54,8 @@ export async function createLineup(formData: FormData, selectedTags: string[]) {
       from: fromBase64,
       to: toBase64,
       travelTime: isNaN(travelTime) ? 0 : travelTime,
+      markerX,
+      markerY,
     })
 
     revalidatePath("/")
@@ -49,3 +65,18 @@ export async function createLineup(formData: FormData, selectedTags: string[]) {
     return { success: false, error: "Impossible de sauvegarder la lineup." }
   }
 }
+
+// export async function deleteLineup(id: string) {
+//   try {
+//     // Suppression de la lineup correspondant à l'ID
+//     await db.delete(lineups).where(eq(lineups.id, id))
+
+//     // Force la mise à jour de la page pour refléter la suppression immédiatement
+//     revalidatePath("/")
+
+//     return { success: true }
+//   } catch (error) {
+//     console.error("Erreur lors de la suppression :", error)
+//     return { success: false, error: "Impossible de supprimer la lineup." }
+//   }
+// }
