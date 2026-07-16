@@ -25,6 +25,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Plus, Check, Loader2 } from "lucide-react"
 import { MAPS, TAGS } from "@/types/types"
+import imageCompression from "browser-image-compression" // AJOUT : Importation du compresseur
 
 export default function CreateLineupModal() {
   const [open, setOpen] = useState(false)
@@ -32,12 +33,20 @@ export default function CreateLineupModal() {
   const [selectedTags, setSelectedTags] = useState<string[]>([])
   const [marker, setMarker] = useState<{ x: number; y: number } | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
-  const [previewToUrl, setPreviewToUrl] = useState<string | null>(null) // AJOUT : Aperçu de l'image d'arrivée
+  const [previewToUrl, setPreviewToUrl] = useState<string | null>(null)
 
   // États pour les composants Select contrôlés de shadcn
   const [mapName, setMapName] = useState<string>("")
   const [difficulty, setDifficulty] = useState<string>("")
   const [site, setSite] = useState<string>("")
+
+  // Configuration globale pour la compression d'image sans perte visuelle
+  const compressionOptions = {
+    maxSizeMB: 0.6, // Réduit le fichier cible sous les 600 Ko (idéal pour la vitesse)
+    maxWidthOrHeight: 1920, // Redimensionne la 4K inutile vers du 1080p
+    useWebWorker: true, // Exécute en arrière-plan pour éviter de figer l'UI
+    fileType: "image/webp", // Convertit en WebP (excellent ratio poids/qualité)
+  }
 
   const toggleTag = (tag: string) => {
     if (selectedTags.includes(tag)) {
@@ -52,6 +61,38 @@ export default function CreateLineupModal() {
     const x = ((e.clientX - rect.left) / rect.width) * 100
     const y = ((e.clientY - rect.top) / rect.height) * 100
     setMarker({ x, y })
+  }
+
+  // AJOUT : Fonction générique pour intercepter le fichier, le compresser et mettre à jour l'input du DOM
+  const handleFileChange = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    setPreview: (url: string | null) => void
+  ) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    try {
+      // 1. Compression à la volée (renvoie un Blob)
+      const compressedBlob = await imageCompression(file, compressionOptions)
+
+      // 2. CONVERSION : Convertir le Blob en un objet File valide pour le navigateur
+      const compressedFile = new File([compressedBlob], file.name, {
+        type: compressedBlob.type,
+        lastModified: Date.now(),
+      })
+
+      // 3. Remplacement du fichier brut par le fichier compressé dans l'événement original
+      const dataTransfer = new DataTransfer()
+      dataTransfer.items.add(compressedFile) // Plus d'erreur ici !
+      e.target.files = dataTransfer.files
+
+      // 4. Mise à jour de l'aperçu visuel local
+      setPreview(URL.createObjectURL(compressedFile))
+    } catch (error) {
+      console.error("Erreur lors de la compression de l'image :", error)
+      // Fallback si la compression échoue : on prend l'image d'origine
+      setPreview(URL.createObjectURL(file))
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -76,7 +117,7 @@ export default function CreateLineupModal() {
       setSite("")
       setMarker(null)
       setPreviewUrl(null)
-      setPreviewToUrl(null) // Reset de l'aperçu d'arrivée
+      setPreviewToUrl(null)
     } else {
       alert(result.error)
     }
@@ -265,10 +306,8 @@ export default function CreateLineupModal() {
               accept="image/*"
               name="img-from"
               required
-              onChange={(e) => {
-                const file = e.target.files?.[0]
-                if (file) setPreviewUrl(URL.createObjectURL(file))
-              }}
+              className="cursor-pointer border-gray-800 bg-[#0f1115] text-gray-400 file:mr-2 file:bg-[#1c2026] file:text-white"
+              onChange={(e) => handleFileChange(e, setPreviewUrl)} // MODIFIÉ
             />
             {previewUrl && (
               <div
@@ -310,12 +349,8 @@ export default function CreateLineupModal() {
               accept="image/*"
               required
               className="cursor-pointer border-gray-800 bg-[#0f1115] text-gray-400 file:mr-2 file:bg-[#1c2026] file:text-white"
-              onChange={(e) => {
-                const file = e.target.files?.[0]
-                if (file) setPreviewToUrl(URL.createObjectURL(file)) // AJOUT : Génère l'URL d'aperçu pour l'arrivée
-              }}
+              onChange={(e) => handleFileChange(e, setPreviewToUrl)} // MODIFIÉ
             />
-            {/* AJOUT : Rendu visuel de la preview de l'image d'arrivée (statique) */}
             {previewToUrl && (
               <div className="relative mt-2 aspect-video w-full overflow-hidden rounded-lg border border-gray-700">
                 <Image

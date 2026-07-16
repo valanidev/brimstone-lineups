@@ -2,12 +2,28 @@
 
 import { db } from "@/db"
 import { lineups } from "@/db/schema"
-import { eq } from "drizzle-orm"
+import { eq, and } from "drizzle-orm"
 
-export async function getCachedLineupsByMap(mapName: string) {
+export async function getLineupsByMap(
+  mapName: string,
+  page: number = 1,
+  pageSize: number = 8,
+  siteName?: string | null
+) {
   try {
-    // Fetch direct depuis Postgres
-    const data = await db.select().from(lineups).where(eq(lineups.map, mapName))
+    const skippedItems = (page - 1) * pageSize
+
+    const conditions = [eq(lineups.map, mapName)]
+    if (siteName) {
+      conditions.push(eq(lineups.site, siteName))
+    }
+
+    const data = await db
+      .select()
+      .from(lineups)
+      .where(and(...conditions))
+      .limit(pageSize)
+      .offset(skippedItems)
 
     return data
   } catch (error) {
