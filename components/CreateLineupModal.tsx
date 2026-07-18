@@ -24,10 +24,16 @@ import {
 } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { Plus, Check, Loader2 } from "lucide-react"
-import { MAPS, TAGS } from "@/types/types"
+import { Lineup, MapName, MAPS, SiteFilter, TAGS } from "@/types/types"
 import imageCompression from "browser-image-compression" // AJOUT : Importation du compresseur
 
-export default function CreateLineupModal() {
+interface CreateLineupModalProps {
+  onLineupCreated: (lineup: Lineup) => void
+}
+
+export default function CreateLineupModal({
+  onLineupCreated,
+}: CreateLineupModalProps) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [selectedTags, setSelectedTags] = useState<string[]>([])
@@ -109,7 +115,12 @@ export default function CreateLineupModal() {
     const result = await createLineup(formData, selectedTags)
 
     setLoading(false)
-    if (result.success) {
+    if (result.success && result.lineup) {
+      onLineupCreated({
+        ...result.lineup,
+        map: result.lineup.map as MapName,
+      } as unknown as Lineup)
+
       setOpen(false)
       setSelectedTags([])
       setMapName("")
@@ -119,7 +130,7 @@ export default function CreateLineupModal() {
       setPreviewUrl(null)
       setPreviewToUrl(null)
     } else {
-      alert(result.error)
+      alert(result.error || "Une erreur est survenue")
     }
   }
 

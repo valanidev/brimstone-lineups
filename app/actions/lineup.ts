@@ -45,21 +45,24 @@ export async function createLineup(formData: FormData, selectedTags: string[]) {
     ])
 
     // Insertion Drizzle (l'UUID est géré tout seul en BDD via la clause default)
-    await db.insert(lineups).values({
-      title,
-      map,
-      site,
-      difficulty,
-      tags: selectedTags,
-      from: fromBase64,
-      to: toBase64,
-      travelTime: isNaN(travelTime) ? 0 : travelTime,
-      markerX,
-      markerY,
-    })
+    const [newLineup] = await db
+      .insert(lineups)
+      .values({
+        title,
+        map,
+        site,
+        difficulty,
+        tags: selectedTags,
+        from: fromBase64,
+        to: toBase64,
+        travelTime: isNaN(travelTime) ? 0 : travelTime,
+        markerX,
+        markerY,
+      })
+      .returning()
 
     revalidatePath("/")
-    return { success: true }
+    return { success: true, lineup: newLineup }
   } catch (error) {
     console.error("Erreur lors de l'insertion Drizzle :", error)
     return { success: false, error: "Impossible de sauvegarder la lineup." }

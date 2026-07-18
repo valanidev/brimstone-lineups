@@ -6,32 +6,33 @@ import { Lineup, MapName, SiteFilter } from "@/types/types"
 import Sidebar from "@/components/Sidebar"
 import SiteFilterToggle from "@/components/SiteFilterToggle"
 import CreateLineupModal from "@/components/CreateLineupModal"
-import { getLineupsByMap } from "@/app/actions/get-lineups" // On passe sur la fonction paginée
-import { Loader2 } from "lucide-react"
+import { getLineupsByMap } from "@/app/actions/get-lineups"
+import { Loader2, Menu } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 
 export default function LineupsGallery() {
   const [selectedMap, setSelectedMap] = useState<MapName>("Ascent")
   const [selectedSite, setSelectedSite] = useState<SiteFilter>("all")
 
-  // États pour la pagination et le scroll infini
   const [dbLineups, setDbLineups] = useState<Lineup[]>([])
   const [page, setPage] = useState<number>(1)
   const [isLoading, setIsLoading] = useState<boolean>(true)
   const [isFetchingMore, setIsFetchingMore] = useState<boolean>(false)
   const [hasMore, setHasMore] = useState<boolean>(true)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false)
 
-  // Cible de l'observateur pour détecter le bas de page
+  const [mapHasData, setMapHasData] = useState<boolean>(false)
+
   const observerTarget = useRef<HTMLDivElement>(null)
-  const PAGE_SIZE = 4
+  const PAGE_SIZE = 8
 
-  // 1. EFFET : Réinitialisation et Chargement Initial (quand la Map ou le Filtre change)
   useEffect(() => {
     async function loadInitialLineups() {
       setIsLoading(true)
       setPage(1)
       setHasMore(true)
 
-      // Appel de l'action serveur avec les filtres
       const data = await getLineupsByMap(
         selectedMap,
         1,
@@ -40,6 +41,10 @@ export default function LineupsGallery() {
       )
 
       setDbLineups(data as unknown as Lineup[])
+
+      if (selectedSite === "all") {
+        setMapHasData(data.length > 0)
+      }
 
       if (data.length < PAGE_SIZE) {
         setHasMore(false)
@@ -50,7 +55,6 @@ export default function LineupsGallery() {
     loadInitialLineups()
   }, [selectedMap, selectedSite])
 
-  // 2. EFFET : Intersection Observer pour détecter le scroll et charger la suite
   useEffect(() => {
     const target = observerTarget.current
     if (!target || !hasMore || isLoading || isFetchingMore) return
@@ -83,9 +87,7 @@ export default function LineupsGallery() {
           setIsFetchingMore(false)
         }
       },
-      {
-        rootMargin: "200px", // Déclenche le chargement 200px avant le bas réel
-      }
+      { rootMargin: "200px" }
     )
 
     observer.observe(target)
@@ -95,44 +97,78 @@ export default function LineupsGallery() {
     }
   }, [page, hasMore, isLoading, isFetchingMore, selectedMap, selectedSite])
 
-  // Pour conserver l'affichage dynamique des sites du filtre, on se base sur les éléments chargés
-  // ou une liste fixe propre à Valorant ("A", "B", "C") selon votre implémentation de <SiteFilterToggle />
-  const availableSitesOnMap = Array.from(
-    new Set(dbLineups.map((lineup) => lineup.site))
-  )
+  const availableSitesOnMap = ["A", "B", "C"]
+
+  const handleLineupCreated = (newLineup: Lineup) => {
+    const matchesMap = newLineup.map === selectedMap
+    const matchesSite =
+      selectedSite === "all" || newLineup.site === selectedSite
+
+    if (matchesMap) {
+      setMapHasData(true)
+      if (matchesSite) {
+        setDbLineups((prev) => [...prev, newLineup])
+      }
+    }
+  }
+
+  const handleSelectMap = (map: MapName) => {
+    setSelectedMap(map)
+    setSelectedSite("all")
+    setMapHasData(false)
+  }
 
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-[#0f1115] font-sans text-gray-200">
-      {/* TOP HEADER GLOBAL */}
-      <nav className="z-50 flex h-16 shrink-0 items-center justify-between border-b border-gray-800 bg-[#14171c] px-6">
-        <div className="flex items-center gap-3">
-          <div className="h-3 w-3 rotate-45 bg-[#ff4655]" />
-          <span className="text-sm font-bold tracking-widest text-white uppercase">
+      <nav className="z-50 flex h-16 shrink-0 items-center justify-between border-b border-gray-800 bg-[#14171c] px-4 sm:px-6">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+            <SheetTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-gray-400 hover:text-white md:hidden"
+              >
+                <Menu className="h-5 w-5" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent
+              side="left"
+              className="w-64 border-r border-gray-800 bg-[#14171c] p-4 pt-12 text-gray-200"
+            >
+              {/* MODIFIÉ : Ajout de la prop isMobile pour forcer l'affichage */}
+              <Sidebar
+                selectedMap={selectedMap}
+                onSelectMap={handleSelectMap}
+                onCloseMobile={() => setMobileMenuOpen(false)}
+                isMobile={true}
+              />
+            </SheetContent>
+          </Sheet>
+
+          <div className="xs:block hidden h-3 w-3 rotate-45 bg-[#ff4655]" />
+
+          {/* MODIFIÉ : Titre adaptatif (BL sur mobile, Brimstone Lineups sur desktop) */}
+          <span className="block text-sm font-bold tracking-widest text-white uppercase md:hidden">
+            BL
+          </span>
+          <span className="hidden text-sm font-bold tracking-widest text-white uppercase md:block">
             Brimstone Lineups
           </span>
         </div>
-
-        {/* Intégration de la Modal de création */}
-        <CreateLineupModal />
+        <CreateLineupModal onLineupCreated={handleLineupCreated} />
       </nav>
 
-      {/* CONTENU PRINCIPAL (Sidebar + Galerie) */}
       <div className="flex flex-1 overflow-hidden">
-        <Sidebar
-          selectedMap={selectedMap}
-          onSelectMap={(map) => {
-            setSelectedMap(map)
-            setSelectedSite("all") // Reset le filtre du site quand la map change
-          }}
-        />
+        <Sidebar selectedMap={selectedMap} onSelectMap={handleSelectMap} />
 
-        <main className="flex-1 overflow-y-auto p-8">
-          <header className="mb-8 flex flex-col gap-4 border-b border-gray-800/60 pb-5 sm:flex-row sm:items-end sm:justify-between">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-8">
+          <header className="mb-6 flex flex-col gap-4 border-b border-gray-800/60 pb-5 sm:mb-8 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <h1 className="mb-2 text-3xl font-bold tracking-tight text-white">
+              <h1 className="mb-1 text-2xl font-bold tracking-tight text-white sm:mb-2 sm:text-3xl">
                 {selectedMap}
               </h1>
-              <p className="text-sm text-gray-400">
+              <p className="hidden text-sm text-gray-400 sm:block">
                 Affichage des lineups disponibles pour la carte {selectedMap}.
               </p>
             </div>
@@ -141,11 +177,10 @@ export default function LineupsGallery() {
               selectedSite={selectedSite}
               onSiteChange={setSelectedSite}
               availableSitesOnMap={availableSitesOnMap}
-              hasLineups={dbLineups.length > 0}
+              hasLineups={mapHasData || selectedSite !== "all"}
             />
           </header>
 
-          {/* Grille des résultats avec gestion du chargement initial */}
           {isLoading ? (
             <div className="flex h-64 items-center justify-center">
               <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#ff4655] border-t-transparent"></div>
@@ -158,10 +193,9 @@ export default function LineupsGallery() {
                 ))}
               </div>
 
-              {/* ÉLÉMENT ESPION : Déclencheur du scroll infini */}
               <div
                 ref={observerTarget}
-                className="flex min-h-[60px] justify-center py-8"
+                className="flex min-h-15 justify-center py-8"
               >
                 {isFetchingMore && (
                   <div className="flex items-center gap-2 text-sm text-gray-400">
@@ -171,13 +205,13 @@ export default function LineupsGallery() {
                 )}
                 {!hasMore && (
                   <p className="text-xs tracking-widest text-gray-600 uppercase">
-                    ✨ Fin des lineups disponibles
+                    Fin des lineups disponibles
                   </p>
                 )}
               </div>
             </>
           ) : (
-            <div className="flex h-64 flex-col items-center justify-center rounded-xl border border-dashed border-gray-800 bg-[#14171c]/30">
+            <div className="flex h-64 flex-col items-center justify-center rounded-xl border border-dashed border-gray-800 bg-[#14171c]/30 p-4 text-center">
               <p className="text-sm text-gray-500">
                 Aucune lineup enregistrée pour {selectedMap}{" "}
                 {selectedSite !== "all" ? `(Site ${selectedSite})` : ""}.
